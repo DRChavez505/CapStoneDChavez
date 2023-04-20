@@ -18,11 +18,9 @@ float tempC;
 float pressPA;
 float humidRH;
 const int D=2;
-Button testButton (D6); 
+Button testButton (D3); 
 // relay stuff
 const int relayPin=D5;
-int relayOn;
-int relayOff;
 bool RelayState;
 bool offOn=1;
 bool onOff=0;
@@ -38,7 +36,7 @@ void setup() {
   display.setTextColor(WHITE);
   display.display();
   display.clearDisplay();
-   pinMode(relayPin, OUTPUT);
+  pinMode(relayPin, OUTPUT);
   Serial.printf("Basic test:");
   waitFor(Serial.isConnected,15000);
   WiFi.on();
@@ -60,20 +58,21 @@ void loop() {
       display.display();
       delay(1000);
       display.display();
-  inputValue=digitalRead(D3);
-  IF(BUTTON1_PRESSED){
-    turnRelayOn();
+  if(BUTTON1_PRESSED){
+  void turnRelayOn();
     delay(5000);
-    serial.printf("button is pressed\n")
+    Serial.printf("button is pressed\n");
   }
   else{
-    turnRelayOff();
+   void turnRelayOff();
     delay(5000);
-    Serial.printf("Button is not pressed \n")
+    Serial.printf("Button is not pressed \n");
   }
 }
-void turnRelayOn(){
-   Serial.printf("activating pump %i\n",relayPin);
+  void turnRelayOn(){
+  Serial.printf("activating pump %i\n",relayPin);
+  digitalWrite(relayPin, HIGH);
+   
    switchON(relayPin);
    digitalWrite(relayPin, offOn);
 }
