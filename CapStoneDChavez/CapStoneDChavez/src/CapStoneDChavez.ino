@@ -20,7 +20,7 @@ float tempC;
 float pressPA;
 float humidRH;
 const int D=2;
-Button testButton (D6); 
+Button testButton (D4); 
 // relay stuff
 const int relayPin=D5;
 int relayOn;
