@@ -4,146 +4,162 @@
  * Author:Dan Chavez
  * Date: 4.19.2023
  */
-#include "IoTClassroom_CNM.h"
-#include <math.h>
-<<<<<<< HEAD
-#include "Stepper.h"
-=======
->>>>>>> 831eeabd64d1d4f55aacc9d11d161a611f596330
+
 #include "particle.h"
+#include <math.h>
+#include "stepper.h"
 #include "Adafruit_BME280.h"
 #include "Adafruit_SSD1306.h"
 #include "Adafruit_GFX.h"
-<<<<<<< HEAD
+#include <Adafruit_MQTT.h>
+#include "Adafruit_MQTT/Adafruit_MQTT_SPARK.h"
+#include "credentials.h"
+#include "JsonParserGeneratorRK.h"
+// Declare global variables here
+TCPClient TheClient; 
+Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_KEY); 
+Adafruit_MQTT_Subscribe subFeed;
+Adafruit_MQTT_Subscribe buttonOnOff;
+Adafruit_MQTT_Publish pubFeed;
+unsigned int lastTime, last;
+const int LEDPIN = D7;
+float subValue,pubValue;
 Stepper myStepper(2048, D8, D7, D6, D5);
-=======
->>>>>>> 831eeabd64d1d4f55aacc9d11d161a611f596330
 Adafruit_SSD1306 display(D3);
-Adafruit_BME280 bme;
 int rot=2;
+Adafruit_BME280 bme;
 bool status;
 float tempC; 
 float pressPA;
 float humidRH;
 const int D=2;
-<<<<<<< HEAD
-Button testButton (D4); 
-// relay stuff
-const int relayPin=D5;
-int relayOn;
-int relayOff;
-=======
-Button testButton (D3); 
-// relay stuff
-const int relayPin=D5;
->>>>>>> 831eeabd64d1d4f55aacc9d11d161a611f596330
+const int relayPin=D12;
 bool RelayState;
 bool offOn=1;
 bool onOff=0;
-// setup() runs once, when the device is first turned on.
+void MQTT_connect();
+bool MQTT_ping();
+// Button testButton (D3); 
 
 void setup() {
-<<<<<<< HEAD
-  Serial.begin(9600);//initialize the serial port first
-  Wire.begin();//start the I2c
-  Wire.beginTransmission(0x68); 
-  Wire.write(0x6B);
-  Wire.write(0x00);
-  Wire.endTransmission(true);
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); //start the display
-=======
-  Serial.begin(9600);
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
->>>>>>> 831eeabd64d1d4f55aacc9d11d161a611f596330
-  display.setRotation(rot);
-  display.display(); 
-  delay(1000);
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.display();
-<<<<<<< HEAD
-  display.clearDisplay(); 
-  myStepper.setSpeed(5); //motor speed setting
-=======
-  display.clearDisplay();
->>>>>>> 831eeabd64d1d4f55aacc9d11d161a611f596330
-  pinMode(relayPin, OUTPUT);
-  Serial.printf("Basic test:");
-  waitFor(Serial.isConnected,15000);
-  WiFi.on();
-  WiFi.setCredentials("IoTNetwork");
-  WiFi.connect();
-  while(WiFi.connecting());
- }
-<<<<<<< HEAD
-=======
-
->>>>>>> 831eeabd64d1d4f55aacc9d11d161a611f596330
+Serial.begin(9600);
+waitFor(Serial.isConnected,15000);
+WiFi.on(); //wifi stuff
+WiFi.connect();
+while(WiFi.connecting());
+{
+Serial.printf(".");
+}
+  Serial.printf("\n\n");
+  mqtt.connect();
+  mqtt.subscribe(&subFeed);// Setup MQTT subscription
+  mqtt.subscribe(&buttonOnOff);
+    bme.begin(0x76);
+      display.begin(SSD1306_SWITCHCAPVCC, 0x3C); //OLED Setup
+      display.setRotation(rot);
+      display.clearDisplay();
+      delay(1000);
+      display.setTextSize(2);
+      display.setTextColor(WHITE);
+      display.display();
+              myStepper.setSpeed(5); //motor speed setting
+              pinMode(relayPin, OUTPUT);
+                Serial.printf("Basic test:");
+  }
 void loop() {
-    status = bme.begin(0x76);
-    if (status == false)
-    {
-      Serial.printf("BME280 at address 0x%02X failed to start", 0x76);
+MQTT_connect();
+MQTT_ping();
+// this is our 'wait for incoming subscription packets' busy subloop 
+  Adafruit_MQTT_Subscribe *subscription;
+    while ((subscription = mqtt.readSubscription(100))) {
+      if (subscription == &buttonOnOff) {
+        subValue = atof((char *)buttonOnOff.lastread);
+        Serial.printf("%f\n",subValue);
+    }
+  }
+      if(subValue == 1){
+        digitalWrite(D7, HIGH);
+        }
+      if(subValue == 0){
+            digitalWrite(D7, LOW);
+        }
+void MQTT_connect();
+  int8_t ret;
+   // Return if already connected.
+  if (mqtt.connected()) {
+    return;
+  }
+   Serial.print("Connecting to MQTT... ");
+   while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
+       Serial.printf("Error Code %s\n",mqtt.connectErrorString(ret));
+       Serial.printf("Retrying MQTT connection in 5 seconds...\n");
+       mqtt.disconnect();
+       delay(5000);  // wait 5 seconds and try again
+  }
+  Serial.printf("MQTT Connected!\n");
+}  
+bool MQTT_ping() {
+  static unsigned int last;
+  bool pingStatus;
+  if ((millis()-last)>1200000) {
+      Serial.printf("Pinging MQTT \n");
+      pingStatus = mqtt.ping();
+      if(!pingStatus) {
+        Serial.printf("Disconnecting \n");
+        mqtt.disconnect();
       }
+      last = millis();
+  }
+  return pingStatus;
+  humidRH = bme.readHumidity();   // Read the humidity from the BME280 sensor.
+    if (humidRH >= 28) {  // Check if the humidity is greater than or equal to 28%.
+        myStepper.step(2048);  // drive the stepper motor.
+        digitalWrite(relayPin, HIGH);   // relay on
+  } else {   // reverse stepper motor.
+        myStepper.step(-2048);   // relay off.
+        digitalWrite(relayPin, LOW);
+  }
+      Serial.printf("BME280 at address 0x%02X failed to start", 0x76);
       tempC = bme.readTemperature(); //deg C
       pressPA = bme.readPressure();  //pascals
       humidRH = bme.readHumidity (); // %RH
-<<<<<<< HEAD
       Serial.printf("Temp %0.1f\nHumidity %0.1f\nPressure %f0.1", tempC, humidRH, pressPA);
-=======
->>>>>>> 831eeabd64d1d4f55aacc9d11d161a611f596330
       display.printf("Temp %0.1f\nHumidity %0.1f\nPressure %f0.1", tempC, humidRH, pressPA);
       display.display();
       delay(1000);
       display.display();
-<<<<<<< HEAD
    if(BUTTON1_PRESSED){
-    turnRelayOn();
+ bool offOn();
     delay(5000);
     myStepper.step(2048);
     delay(500);
     Serial.printf("button is pressed\n");
   }
   else{
-    turnRelayOff();
+ bool onOff();
     delay(5000);
     myStepper.step(-2048);
     delay(500);
     Serial.printf("Button is not pressed \n");
   }
 }
-void turnRelayOn(){
+bool offOn(){
    Serial.printf("activating pump %i\n",relayPin);
    switchON(relayPin);
    digitalWrite(relayPin, offOn);
 }
 
-void turnRelayOff()  {
+bool onOff()  {
    digitalWrite(relayPin, onOff);
    Serial.printf("turning pump off %i\n",relayPin);
 }
-=======
   if(BUTTON1_PRESSED){
-  void turnRelayOn();
+  void offOn();
     delay(5000);
     Serial.printf("button is pressed\n");
   }
   else{
-   void turnRelayOff();
+   void onOff();
     delay(5000);
     Serial.printf("Button is not pressed \n");
   }
-}
-  void turnRelayOn(){
-  Serial.printf("activating pump %i\n",relayPin);
-  digitalWrite(relayPin, HIGH);
-   
-   switchON(relayPin);
-   digitalWrite(relayPin, offOn);
-}
-
-void turnRelayOff()  {
-   digitalWrite(relayPin, onOff);
-   Serial.printf("turning pump off %i\n",relayPin);
-}
->>>>>>> 831eeabd64d1d4f55aacc9d11d161a611f596330
