@@ -31,7 +31,6 @@ TCPClient TheClient;
 Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_KEY); 
 Adafruit_MQTT_Publish relayPosition = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/relayState");
 Adafruit_MQTT_Subscribe buttonOnOff = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/buttonOnOff");
-class AdafruitIO_Client io;
 unsigned int lastTime, last;
 const int LEDPIN = D7;
 unsigned long currentTime;
@@ -81,9 +80,6 @@ Serial.printf(".");
             pinMode(relayPin, OUTPUT); //intitialize the relay switch
               pinMode(D3, INPUT); // Initialize the physical button
 
-              // Initialize the Adafruit.io client
-                AdafruitIO_Client io;
-                AdafruitIO_Feed *feed = io.feed("bottonOnOff");
                 Serial.printf("Basic test:");
                 currentTime = millis();
   }
