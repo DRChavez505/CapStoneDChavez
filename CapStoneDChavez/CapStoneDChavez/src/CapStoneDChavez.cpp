@@ -12,6 +12,7 @@
  */
 
 #include "particle.h"
+#include "_BUTTON_H_"
 #include <math.h>
 #include "stepper.h"
 #include "Adafruit_BME280.h"
@@ -27,7 +28,7 @@ void setup();
 void loop();
 bool offOn();
 bool onOff();
-#line 20 "c:/Users/daniu/Documents/iot/CapStoneDChavez/CapStoneDChavez/CapStoneDChavez/src/CapStoneDChavez.ino"
+#line 21 "c:/Users/daniu/Documents/iot/CapStoneDChavez/CapStoneDChavez/CapStoneDChavez/src/CapStoneDChavez.ino"
 TCPClient TheClient; 
 Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_KEY); 
 Adafruit_MQTT_Publish relayPosition = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/relayState");
@@ -49,7 +50,8 @@ bool off_On=1;
 bool on_Off=0;
 void MQTT_connect();
 bool MQTT_ping();
-Button BUTTON1_PRESSED (D3); 
+Button BUTTON_PRESSED (D3); 
+
 void setup() {
 Serial.begin(9600);
 waitFor(Serial.isConnected,15000);
@@ -95,34 +97,22 @@ MQTT_ping();
     humidRH = bme.readHumidity();   // Read the humidity from the BME280 sensor.
     if (humidRH >= 28) {  // Check if the humidity is greater than or equal to 28%.
         myStepper.step(2048);  // drive the stepper motor.
-        digitalWrite(relayPin, HIGH);   // relay on
-  } else {   // reverse stepper motor.
-        myStepper.step(-2048);   // relay off.
-        digitalWrite(relayPin, LOW);
+        digitalWrite(relayPin, HIGH);   // relay pump on
+        } else {   // reverse stepper motor.
+            myStepper.step(-2048);   // relaypump off.
+            digitalWrite(relayPin, LOW);
   }
       Serial.printf("BME280 at address 0x%02X failed to start", 0x76);
       tempC = bme.readTemperature(); //deg C
       humidRH = bme.readHumidity (); // %RH
+
       Serial.printf("Temp %0.1f\nHumidity %0.1f\n", tempC, humidRH);
       display.printf("Temp %0.1f\nHumidity %0.1f\n", tempC, humidRH);
       display.display();
       delay(1000);
-      display.display();
-   if(BUTTON1_PRESSED){
-  offOn();
-    delay(5000);
-    myStepper.step(2048);
-    delay(500);
-    Serial.printf("button is pressed\n");
-  }
-  else{
- onOff();
-    delay(5000);
-    myStepper.step(-2048);
-    delay(500);
-    Serial.printf("Button is not pressed \n");
-  }
-  if(BUTTON1_PRESSED){
+      display.display();  
+
+if(BUTTON_PRESSED){
   offOn();
     delay(5000);
     Serial.printf("button is pressed\n");
@@ -132,10 +122,11 @@ MQTT_ping();
     delay(5000);
     Serial.printf("Button is not pressed \n");
   }
-  }  
+}
 bool MQTT_ping() {
   static unsigned int last;
   bool pingStatus;
+
   if ((millis()-last)>1200000) {
       Serial.printf("Pinging MQTT \n");
       pingStatus = mqtt.ping();
@@ -147,31 +138,24 @@ bool MQTT_ping() {
   }
   return pingStatus;
   }
+
 bool offOn(){
    Serial.printf("activating pump %i\n",relayPin);
      digitalWrite(relayPin, off_On);
 }
-
 bool onOff(){
    digitalWrite(relayPin, on_Off);
    Serial.printf("turning pump off %i\n",relayPin);
 }
-  if(BUTTON1_PRESSED){
-  offOn();
-    delay(5000);
-    Serial.printf("button is pressed\n");
-  }
-  else{
-  onOff();
-    delay(5000);
-    Serial.printf("Button is not pressed \n");
-  }
+  
   void MQTT_connect(){
   int8_t ret;
+
    // Return if already connected.
   if (mqtt.connected()) {
     return;
   }
+  
    Serial.print("Connecting to MQTT... ");
    while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
        Serial.printf("Error Code %s\n",mqtt.connectErrorString(ret));
