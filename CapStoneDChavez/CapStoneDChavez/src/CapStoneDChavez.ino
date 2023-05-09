@@ -6,6 +6,7 @@
  */
 
 #include "particle.h"
+#include "Adafruit_DHT_Particle.h"
 #include <math.h>
 #include "stepper.h"
 #include "Adafruit_BME280.h"
@@ -21,8 +22,12 @@ TCPClient TheClient;
 Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_KEY); 
 Adafruit_MQTT_Publish relayPosition = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/relayState");
 Adafruit_MQTT_Subscribe buttonOnOff = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/buttonOnOff");
+class AdafruitIO_Client io;
 unsigned int lastTime, last;
 const int LEDPIN = D7;
+unsigned long currentTime;
+unsigned long pumpStartTime;
+unsigned long pumpDuration = 240000; //4 minutes for demo 40 minutes would work better.
 float subValue,pubValue;
 Stepper myStepper(2048, D8, D7, D6, D5);
 Adafruit_SSD1306 display(D3);
@@ -41,13 +46,12 @@ bool MQTT_ping();
 class Button; //declaring a class for the button
 int BUTTON_PRESSED(D3); 
 
-
 void setup() {
 Serial.begin(9600); //starting serial connection
 waitFor(Serial.isConnected,15000); //wait for connection
 WiFi.on(); //wifi stuff
 WiFi.connect();
-
+bme.begin(0x76); //starting BME 
 while(WiFi.connecting());
 {
 Serial.printf(".");
@@ -56,104 +60,65 @@ Serial.printf(".");
 
   mqtt.connect();//Setup MQTT broker
   mqtt.subscribe(&buttonOnOff); //buttonOnOff at adafruit.io
-    bme.begin(0x76); //starting the BME280
       display.begin(SSD1306_SWITCHCAPVCC, 0x3C); //OLED Setup
       display.setRotation(rot);
       display.clearDisplay();
       delay(1000);
-      display.setTextSize(2);
+      display.setTextSize(1);
       display.setTextColor(WHITE);
       display.display();
-      //initializing the Stepper
-              myStepper.setSpeed(5); //motor speed setting
-              pinMode(relayPin, OUTPUT);
+        //initializing the Stepper
+        myStepper.setSpeed(5); //motor speed setting
+            pinMode(relayPin, OUTPUT); //intitialize the relay switch
+              pinMode(D3, INPUT); // Initialize the physical button
+
+              // Initialize the Adafruit.io client
+                AdafruitIO_Client io;
+                AdafruitIO_Feed *feed = io.feed("bottonOnOff");
                 Serial.printf("Basic test:");
+                currentTime = millis();
   }
 
 void loop() {
-MQTT_connect();
-MQTT_ping();
-// this is our 'wait for incoming subscription packets' busy subloop 
+  // Get the current time.
+  unsigned long currentTime = millis();
+
+  // Read the humidity from the BME280 sensor.
+  float humidRH = bme.readHumidity();
+
+  // Check if the humidity is below 28%.
+  if (humidRH < 28) {
+    // Close the door and turn on the relay.
+    myStepper.step(-2048);
+    digitalWrite(relayPin, HIGH);
+    Serial.printf("Humidity too low Closing Door and Starting Relay/Pump\n");
+  } else {
+    // Turn the relay off and open the door.
+    digitalWrite(relayPin, LOW);
+    myStepper.step(2048);
+    Serial.printf("Humidity is above 28%. Stopping Relay/Pump and Opening Door\n");
+  }
+
+  // Check the value of the buttonOnOff feed on Adafruit.io.
   Adafruit_MQTT_Subscribe *subscription;
-    while ((subscription = mqtt.readSubscription(100))) {
-      if (subscription == &buttonOnOff) {
-        subValue = atof((char *)buttonOnOff.lastread); //converting subvalues from subscription into a flat that is compared agains the last "buttonstate"
-        Serial.printf("%f\n",subValue);
+  while ((subscription = mqtt.readSubscription(100))) {
+    if (subscription == &buttonOnOff) {
+      // Read the value of the feed.
+      bool value = atof((char *)buttonOnOff.lastread);
+
+      // Set the physical button to the same state.
+      digitalWrite(D3, value);
+
+      // Check if the button is pressed.
+      if (value == true) {
+        // Close the door and turn on the pump.
+        myStepper.step(-2048);
+        digitalWrite(relayPin, HIGH);
+      } else {
+        // Turn the relay off and open the door.
+        digitalWrite(relayPin, LOW);
+        myStepper.step(2048);
+      }
     }
   }
-      if(subValue == 1){//if subValue is 1 door closes and it rains
-        digitalWrite(D7, HIGH);
-        }
-      if(subValue == 0){//if subValue is 0 door opens and it stops raining
-            digitalWrite(D7, LOW);
-        }
-    humidRH = bme.readHumidity();   // Read the humidity from the BME280 sensor.
-    if (humidRH >= 28) {  // Check if the humidity is greater than or equal to 28%.
-        myStepper.step(2048);  // forward stepper motor.
-        digitalWrite(relayPin, HIGH);   // relay pump on
-        } else {   
-            myStepper.step(-2048);   // reverse stepper motor.
-            digitalWrite(relayPin, LOW);// relaypump off.
-  }
-      Serial.printf("BME280 at address 0x%02X failed to start", 0x76);
-      tempC = bme.readTemperature(); //deg C
-      humidRH = bme.readHumidity (); // %RH
-
-      Serial.printf("Temp %0.1f\nHumidity %0.1f\n", tempC, humidRH); //printing results to serial terminal
-      display.printf("Temp %0.1f\nHumidity %0.1f\n", tempC, humidRH); //printing results to display terminal
-      display.display();
-      delay(1000);
-      display.display();  
-
-if(BUTTON_PRESSED){
-  offOn(); //relay/pump on
-    delay(5000);
-    Serial.printf("button is pressed\n");
-  }
-  else{
-  onOff(); //relay/pump off 
-    delay(5000);
-    Serial.printf("Button is not pressed \n");
-  }
 }
-bool MQTT_ping() {
-  static unsigned int last;
-  bool pingStatus;
-
-  if ((millis()-last)>200000) {
-      Serial.printf("Pinging MQTT \n");
-      pingStatus = mqtt.ping();
-      if(!pingStatus) {
-        Serial.printf("Disconnecting \n");
-        mqtt.disconnect();
-      }
-      last = millis();
-  }
-  return pingStatus;
-  }
-
-bool offOn(){
-   Serial.printf("activating pump %i\n",relayPin);
-     digitalWrite(relayPin, off_On);
-}
-bool onOff(){
-   digitalWrite(relayPin, on_Off);
-   Serial.printf("turning pump off %i\n",relayPin);
-}
-  
-  void MQTT_connect(){
-  int8_t ret;
-
-   // Return if already connected.
-  if (mqtt.connected()) {
-    return;
-  }
-  
-   Serial.print("Connecting to MQTT... ");
-   while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
-       Serial.printf("Error Code %s\n",mqtt.connectErrorString(ret));
-       Serial.printf("Retrying MQTT connection in 5 seconds...\n");
-       mqtt.disconnect();
-       delay(5000);  // wait 5 seconds and try again
-  }
-  Serial.printf("MQTT Connected!\n");}
