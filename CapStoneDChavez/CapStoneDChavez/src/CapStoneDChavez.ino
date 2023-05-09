@@ -6,7 +6,6 @@
  */
 
 #include "particle.h"
-#include "_BUTTON_H_"
 #include <math.h>
 #include "stepper.h"
 #include "Adafruit_BME280.h"
@@ -39,21 +38,25 @@ bool off_On=1;
 bool on_Off=0;
 void MQTT_connect();
 bool MQTT_ping();
-Button BUTTON_PRESSED (D3); 
+class Button; //declaring a class for the button
+int BUTTON_PRESSED(D3); 
+
 
 void setup() {
-Serial.begin(9600);
-waitFor(Serial.isConnected,15000);
+Serial.begin(9600); //starting serial connection
+waitFor(Serial.isConnected,15000); //wait for connection
 WiFi.on(); //wifi stuff
 WiFi.connect();
+
 while(WiFi.connecting());
 {
 Serial.printf(".");
 }
   Serial.printf("\n\n");
-  mqtt.connect();//Setup MQTT subscription
-  mqtt.subscribe(&buttonOnOff);
-    bme.begin(0x76);
+
+  mqtt.connect();//Setup MQTT broker
+  mqtt.subscribe(&buttonOnOff); //buttonOnOff at adafruit.io
+    bme.begin(0x76); //starting the BME280
       display.begin(SSD1306_SWITCHCAPVCC, 0x3C); //OLED Setup
       display.setRotation(rot);
       display.clearDisplay();
@@ -61,6 +64,7 @@ Serial.printf(".");
       display.setTextSize(2);
       display.setTextColor(WHITE);
       display.display();
+      //initializing the Stepper
               myStepper.setSpeed(5); //motor speed setting
               pinMode(relayPin, OUTPUT);
                 Serial.printf("Basic test:");
@@ -73,41 +77,41 @@ MQTT_ping();
   Adafruit_MQTT_Subscribe *subscription;
     while ((subscription = mqtt.readSubscription(100))) {
       if (subscription == &buttonOnOff) {
-        subValue = atof((char *)buttonOnOff.lastread);
+        subValue = atof((char *)buttonOnOff.lastread); //converting subvalues from subscription into a flat that is compared agains the last "buttonstate"
         Serial.printf("%f\n",subValue);
     }
   }
-      if(subValue == 1){
+      if(subValue == 1){//if subValue is 1 door closes and it rains
         digitalWrite(D7, HIGH);
         }
-      if(subValue == 0){
+      if(subValue == 0){//if subValue is 0 door opens and it stops raining
             digitalWrite(D7, LOW);
         }
     humidRH = bme.readHumidity();   // Read the humidity from the BME280 sensor.
     if (humidRH >= 28) {  // Check if the humidity is greater than or equal to 28%.
-        myStepper.step(2048);  // drive the stepper motor.
+        myStepper.step(2048);  // forward stepper motor.
         digitalWrite(relayPin, HIGH);   // relay pump on
-        } else {   // reverse stepper motor.
-            myStepper.step(-2048);   // relaypump off.
-            digitalWrite(relayPin, LOW);
+        } else {   
+            myStepper.step(-2048);   // reverse stepper motor.
+            digitalWrite(relayPin, LOW);// relaypump off.
   }
       Serial.printf("BME280 at address 0x%02X failed to start", 0x76);
       tempC = bme.readTemperature(); //deg C
       humidRH = bme.readHumidity (); // %RH
 
-      Serial.printf("Temp %0.1f\nHumidity %0.1f\n", tempC, humidRH);
-      display.printf("Temp %0.1f\nHumidity %0.1f\n", tempC, humidRH);
+      Serial.printf("Temp %0.1f\nHumidity %0.1f\n", tempC, humidRH); //printing results to serial terminal
+      display.printf("Temp %0.1f\nHumidity %0.1f\n", tempC, humidRH); //printing results to display terminal
       display.display();
       delay(1000);
       display.display();  
 
 if(BUTTON_PRESSED){
-  offOn();
+  offOn(); //relay/pump on
     delay(5000);
     Serial.printf("button is pressed\n");
   }
   else{
-  onOff();
+  onOff(); //relay/pump off 
     delay(5000);
     Serial.printf("Button is not pressed \n");
   }
@@ -116,7 +120,7 @@ bool MQTT_ping() {
   static unsigned int last;
   bool pingStatus;
 
-  if ((millis()-last)>1200000) {
+  if ((millis()-last)>200000) {
       Serial.printf("Pinging MQTT \n");
       pingStatus = mqtt.ping();
       if(!pingStatus) {
